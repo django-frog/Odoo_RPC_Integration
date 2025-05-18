@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Partners</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    document.addEventListener("alpine:init", () => {
+      Alpine.data("partnersApp", () => ({
+        partners: [],
+        error: null,
+        name: "",
+        email: "",
+        image: "",
+        searchQuery: "",
+
+        async fetchPartners(query = "") {
+          try {
+            const res = await fetch(query ? `/partners/search?name=${encodeURIComponent(query)}` : "/partners");
+            const data = await res.json();
+            if (res.ok) {
+              this.partners = data;
+            } else {
+              this.error = data.error;
+            }
+          } catch (err) {
+            this.error = "Failed to fetch data.";
+          }
+        },
+
+        async createPartner() {
+            const payload = {
+              name: this.name,
+              email: this.email || "",
+              image_1920: this.image || "",
+              company_type: "person"  // ✅ Required by Odoo
+            };
+          
+            try {
+              const res = await fetch("/partners", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+              const data = await res.json();
+              if (res.ok) {
+                this.name = "";
+                this.email = "";
+                this.image = "";
+                await this.fetchPartners(); // Refresh list
+              } else {
+                this.error = data.error || JSON.stringify(data);
+              }
+            } catch (err) {
+              this.error = "Failed to create partner.";
+            }
+        },
+
+        async deletePartner(id) {
+          if (!confirm("Are you sure you want to delete this partner?")) return;
+
+          try {
+            const res = await fetch(`/partners/${id}`, { method: "DELETE" });
+            const data = await res.json();
+            if (res.ok) {
+              this.partners = this.partners.filter(p => p.id !== id);
+            } else {
+              this.error = data.error;
+            }
+          } catch (err) {
+            this.error = "Failed to delete partner.";
+          }
+        },
+
+        async handleSearch() {
+          await this.fetchPartners(this.searchQuery);
+        }
+      }));
+    });
+  </script>
+</head>
+<body class="bg-gray-50 text-gray-800">
+  <div x-data="partnersApp" x-init="fetchPartners()" class="max-w-3xl mx-auto py-10 px-4">
+    <h1 class="text-3xl font-bold mb-6 text-center">Odoo Partners</h1>
+
+    <template x-if="error">
+      <p class="text-red-600 mb-4 text-center" x-text="error"></p>
+    </template>
+
+    <!-- Search -->
+    <div class="flex items-center space-x-2 mb-6">
+      <input type="text" x-model="searchQuery" placeholder="Search partners by name"
+             class="w-full border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300" />
+      <button @click="handleSearch"
+              class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">Search</button>
+    </div>
+
+    <!-- Create Partner -->
+    <div class="bg-white shadow rounded p-4 mb-8">
+      <h2 class="text-lg font-semibold mb-2">Create New Partner</h2>
+      <div class="space-y-2">
+        <input type="text" x-model="name" placeholder="Name"
+               class="w-full border rounded px-3 py-2" />
+        <input type="email" x-model="email" placeholder="Email"
+               class="w-full border rounded px-3 py-2" />
+        <input type="text" x-model="image" placeholder="Base64 image (optional)"
+               class="w-full border rounded px-3 py-2" />
+        <button @click="createPartner"
+                class="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">Create</button>
+      </div>
+    </div>
+
+    <!-- Partners List -->
+    <div class="bg-white shadow-md rounded p-4 space-y-4">
+      <template x-for="partner in partners" :key="partner.id">
+        <div class="flex items-center justify-between border-b pb-4">
+          <div class="flex items-center space-x-4">
+            <img :src="`data:image/png;base64,${partner.image_1920}`" alt="Avatar"
+                 class="w-12 h-12 rounded-full object-cover border" x-show="partner.image_1920" />
+            <div>
+              <p class="text-lg font-semibold" x-text="partner.name"></p>
+              <p class="text-sm text-gray-600" x-text="partner.email || 'No email'"></p>
+            </div>
+          </div>
+          <button @click="deletePartner(partner.id)"
+                  class="text-red-500 hover:text-red-700">Delete</button>
+        </div>
+      </template>
+    </div>
+  </div>
+</body>
+</html>
